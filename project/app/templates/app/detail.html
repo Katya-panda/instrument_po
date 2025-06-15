@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ spec.name }}</title>
+</head>
+<body>
+    <h2>{{ spec.name }}</h2>
+    <h3>Код: {{ spec.code }} <br>
+    Описание: {{ spec.desc }}</h3>
+
+    {% if spec.all_data.searchtag %}
+    <h3>Тег поиска: {{ spec.all_data.searchtag }}</h3>
+    {% endif %}
+    
+    <a href="/spec"><h3><b>← Назад к списку</b></h3></a>
+</body>
+</html>

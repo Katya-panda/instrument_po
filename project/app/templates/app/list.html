@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Все квалификации</title>
+</head>
+<body>
+    <h2>Список квалификаций:</h2>
+    <ul><b>
+        {% for spec in specs %}
+        <li>
+            <a href="/spec/{{ spec.id }}"><h3><b>{{ spec.name }}</b></h3></a>
+        </li>
+        {% endfor %}
+    </b></ul>
+</body>
+</html>
