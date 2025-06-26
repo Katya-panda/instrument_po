@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Корзина</title>
+</head>
+<body>
+    <h2>Ваша корзина:</h2>
+    
+    {% if cart_items %}
+    <table border="1">
+        <tr>
+            <th>Товар</th>
+            <th>Цена</th>
+            <th>Количество</th>
+            <th>Сумма</th>
+            <th>Действия</th>
+        </tr>
+        {% for item in cart_items %}
+        <tr>
+            <td>{{ item.product.name }}</td>
+            <td>{{ item.product.price }} руб.</td>
+            <td>
+                <form method="post" action="/cart/update/{{ item.id }}/">
+                    {% csrf_token %}
+                    <input type="number" name="quantity" value="{{ item.quantity }}" min="1" max="{{ item.product.stock_quantity }}">
+                    <button type="submit">Обновить</button>
+                </form>
+            </td>
+            <td>{{ item.item_price }} руб.</td>
+            <td><a href="/cart/remove/{{ item.id }}/">Удалить</a></td>
+        </tr>
+        {% endfor %}
+        <tr>
+            <td colspan="3"><b>Итого:</b></td>
+            <td colspan="2"><b>{{ total }} руб.</b></td>
+        </tr>
+    </table>
+    {% else %}
+    <p>Ваша корзина пуста</p>
+    {% endif %}
+    
+    <a href="/catalog/"><h3>Продолжить покупки</h3></a>
+</body>
+</html>
