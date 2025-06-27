@@ -82,3 +82,38 @@ class CartItem(models.Model):
         verbose_name = "Элемент корзины"
         verbose_name_plural = "Элементы корзины"
         unique_together = ("cart", "product")
+
+# заказ
+class Order(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Пользователь")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
+    total = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)], verbose_name="Общая сумма")
+    address = models.TextField(verbose_name="Адрес доставки")
+    email = models.EmailField(verbose_name="Email")
+    phone = models.CharField(max_length=20, verbose_name="Телефон")
+    
+    def __str__(self):
+        return f"Заказ №{self.id} от {self.created_at.strftime('%d.%m.%Y')}"
+    
+    class Meta:
+        verbose_name = "Заказ"
+        verbose_name_plural = "Заказы"
+        ordering = ['-created_at']
+
+# элемент заказа
+class OrderItem(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items', verbose_name="Заказ")
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, verbose_name="Товар")
+    quantity = models.PositiveIntegerField(verbose_name="Количество")
+    price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)], verbose_name="Цена")
+    
+    @property
+    def total_price(self):
+        return self.price * self.quantity
+    
+    def __str__(self):
+        return f"{self.product.name} x {self.quantity}"
+    
+    class Meta:
+        verbose_name = "Элемент заказа"
+        verbose_name_plural = "Элементы заказа"        

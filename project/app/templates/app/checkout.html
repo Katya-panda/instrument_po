@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Оформление заказа</title>
+</head>
+<body>
+    <h2>Оформление заказа</h2>
+    {% if error %}
+    <div style="color: red;">{{ error }}</div>
+    {% endif %}
+    
+    <form method="post">
+        {% csrf_token %}
+        
+        <label>Email:</label><br>
+        <input type="email" name="email" value="{{ user.email }}" required><br>
+        
+        <label>Телефон:</label><br>
+        <input type="tel" name="phone" required><br>
+        
+        <label>Адрес доставки:</label><br>
+        <textarea name="address" required></textarea><br>
+        
+        <h3>Ваш заказ</h3>
+        <ul>
+            {% for item in cart_items %}
+            <li>{{ item.product.name }} - {{ item.quantity }} × {{ item.product.price }}</li>
+            {% endfor %}
+        </ul>
+        <p>Итого: {{ total }}</p>
+        
+        <button type="submit">Подтвердить заказ</button>
+    </form>
+</body>
+</html>

@@ -3,7 +3,11 @@ import json
 import os
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
-from .models import Product, Cart, CartItem
+from .models import Product, Cart, CartItem, Order, OrderItem
+from django.core.mail import EmailMessage
+from openpyxl import Workbook
+from io import BytesIO
+from django.conf import settings
 
 # главная страница
 def home(request):
@@ -116,4 +120,76 @@ def cart_view(request):
     return render(request, "app/cart.html", {
         "cart_items": cart_items,
         "total": total
+    })
+
+# обработка оформления заказа
+@login_required
+def checkout(request):
+    cart = Cart.objects.get(user=request.user)
+    cart_items = cart.cartitem_set.all()
+    
+    if not cart_items.exists():
+        return redirect('cart_view')
+    
+    if request.method == 'POST':
+        try:
+            # создание заказа
+            order = Order.objects.create(
+                user=request.user,
+                total=cart.total_price(),
+                address=request.POST.get('address'),
+                email=request.POST.get('email', request.user.email),
+                phone=request.POST.get('phone')
+            )
+            
+            # добавление товаров в заказ
+            for item in cart_items:
+                OrderItem.objects.create(
+                    order=order,
+                    product=item.product,
+                    quantity=item.quantity,
+                    price=item.product.price
+                )
+            
+            # генерация Excel-чека
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Чек заказа"
+            ws.append(['Товар', 'Количество', 'Цена', 'Сумма'])
+            for item in order.items.all():
+                ws.append([item.product.name, item.quantity, item.price, item.total_price])
+            ws.append(['', '', 'Итого:', order.total])
+            
+            excel_file = BytesIO()
+            wb.save(excel_file)
+            excel_file.seek(0)
+            
+            # отправка письма
+            email = EmailMessage(
+                f'Заказ №{order.id}',
+                f'Спасибо за покупку! Адрес доставки: {order.address}',
+                settings.DEFAULT_FROM_EMAIL,
+                [order.email],
+                attachments=[
+                    (f'order_{order.id}.xlsx', excel_file.getvalue(), 
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                ]
+            )
+            email.send()
+            
+            # очистка корзины
+            cart_items.delete()
+            
+            return render(request, 'app/order_success.html', {'order': order})
+            
+        except Exception as e:
+            return render(request, 'app/checkout.html', {
+                'error': f'Ошибка: {str(e)}',
+                'cart_items': cart_items,
+                'total': cart.total_price()
+            })
+    
+    return render(request, 'app/checkout.html', {
+        'cart_items': cart_items,
+        'total': cart.total_price()
     })
