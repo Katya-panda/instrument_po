@@ -3,11 +3,17 @@ import json
 import os
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
+from .serializers import CartSerializer, OrderSerializer, ProductSerializer
 from .models import Product, Cart, CartItem, Order, OrderItem
 from django.core.mail import EmailMessage
 from openpyxl import Workbook
 from io import BytesIO
 from django.conf import settings
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
 
 # главная страница
 def home(request):
@@ -193,3 +199,100 @@ def checkout(request):
         'cart_items': cart_items,
         'total': cart.total_price()
     })
+
+# API ViewSet
+class ProductViewSet(viewsets.ModelViewSet):
+    queryset = Product.objects.all()  
+    serializer_class = ProductSerializer
+    permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) | 
+                Q(description__icontains=search)
+            )
+        return queryset
+
+class CartViewSet(viewsets.ModelViewSet):
+    serializer_class = CartSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return Cart.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def add_item(self, request, pk=None):
+        cart = self.get_object()
+        product_id = request.data.get('product_id')
+        quantity = request.data.get('quantity', 1)
+        
+        try:
+            product = Product.objects.get(pk=product_id)
+            cart_item, created = CartItem.objects.get_or_create(
+                cart=cart,
+                product=product,
+                defaults={'quantity': quantity}
+            )
+            
+            if not created:
+                cart_item.quantity += int(quantity)
+                cart_item.save()
+                
+            return Response({'status': 'item added'}, status=status.HTTP_201_CREATED)
+            
+        except Product.DoesNotExist:
+            return Response(
+                {'error': 'Product not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+class OrderViewSet(viewsets.ModelViewSet):
+    serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return Order.objects.filter(user=self.request.user)
+    
+    def create(self, request):
+        cart = Cart.objects.get(user=request.user)
+        cart_items = cart.cartitem_set.all()
+        
+        if not cart_items.exists():
+            return Response(
+                {'error': 'Cart is empty'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        try:
+            order = serializer.save(
+                user=request.user,
+                total=cart.total_price()
+            )
+            
+            for item in cart_items:
+                OrderItem.objects.create(
+                    order=order,
+                    product=item.product,
+                    quantity=item.quantity,
+                    price=item.product.price
+                )
+            
+            cart_items.delete()
+            
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
